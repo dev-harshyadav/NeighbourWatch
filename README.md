@@ -2,7 +2,7 @@
 
 A community-driven, browser-based crime awareness dashboard for residential neighbourhoods. Citizens can anonymously report incidents, view live risk zones on an interactive map, and analyse crime patterns through heatmaps and timelines — all without any backend or database.
 
-🔗 **Live Demo:** [Click here to try it](https://dev-harshyadav.github.io/neighbour-watch)
+🔗 **Live Demo:** [Click here to try it](https://dev-harshyadav.github.io/NeighbourWatch)
 
 ---
 
