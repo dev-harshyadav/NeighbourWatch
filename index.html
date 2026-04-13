@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NeighbourWatch — Hyperlocal Crime Pattern Mapper</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
+  :root {
+    --bg: #0A0E1A;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: rgba(255,255,255,0.07);
+    --red: #FF3B5C;
+    --orange: #FF8C42;
+    --yellow: #FFD166;
+    --green: #06D6A0;
+    --blue: #3B9FFF;
+    --teal: #00C9B1;
+    --text: #F0F4FF;
+    --muted: #8892A4;
+    --radius: 14px;
+    --shadow: 0 8px 40px rgba(0,0,0,0.5);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── NAV ── */
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 28px;
+    background: rgba(10,14,26,0.95);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { font-family:'Syne',sans-serif; font-weight:800; font-size:1.2rem; color:var(--teal); letter-spacing:-0.5px; }
+  .logo span { color:var(--text); }
+  nav .tabs { display:flex; gap:4px; }
+  nav .tabs button {
+    background: none; border:none; color:var(--muted);
+    font-family:'DM Sans',sans-serif; font-size:0.85rem; font-weight:500;
+    padding:8px 14px; border-radius:8px; cursor:pointer; transition:all .2s;
+  }
+  nav .tabs button.active, nav .tabs button:hover {
+    background: var(--surface2); color:var(--text);
+  }
+  nav .tabs button.active { color:var(--teal); }
+  .nav-right { display:flex; align-items:center; gap:10px; }
+  .alert-badge {
+    background: var(--red); color:#fff;
+    font-size:0.7rem; font-weight:700; padding:3px 8px; border-radius:20px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+  .btn-sm {
+    background: var(--teal); color:#0A0E1A;
+    font-family:'DM Sans',sans-serif; font-weight:700; font-size:0.82rem;
+    border:none; padding:8px 16px; border-radius:8px; cursor:pointer; transition:all .2s;
+  }
+  .btn-sm:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(0,201,177,0.4); }
+
+  /* ── VIEWS ── */
+  .view { display:none; }
+  .view.active { display:block; }
+
+  /* ── DASHBOARD ── */
+  .dashboard-grid {
+    display:grid; grid-template-columns:1fr 340px;
+    gap:20px; padding:20px 24px; height:calc(100vh - 60px);
+  }
+
+  /* MAP AREA */
+  .map-container {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden; position: relative;
+  }
+  .map-header {
+    padding:14px 18px; display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid var(--border);
+  }
+  .map-header h2 { font-family:'Syne',sans-serif; font-size:0.95rem; font-weight:700; }
+  .live-dot {
+    width:8px; height:8px; border-radius:50%; background:var(--green);
+    display:inline-block; margin-right:6px;
+    box-shadow:0 0 8px var(--green); animation:pulse 1.5s infinite;
+  }
+  .map-canvas { width:100%; height:calc(100% - 54px); position:relative; overflow:hidden; }
+
+  /* SVG MAP */
+  #map-svg { width:100%; height:100%; cursor:crosshair; }
+
+  /* RISK LEGEND */
+  .risk-legend {
+    position:absolute; bottom:14px; left:14px;
+    background:rgba(10,14,26,0.85); border:1px solid var(--border);
+    border-radius:10px; padding:10px 14px; backdrop-filter:blur(8px);
+    font-size:0.75rem;
+  }
+  .risk-legend h4 { color:var(--muted); font-weight:500; margin-bottom:8px; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; }
+  .legend-row { display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+  .legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+
+  /* MAP TOOLTIP */
+  .map-tooltip {
+    position:absolute; background:rgba(10,14,26,0.95);
+    border:1px solid var(--border); border-radius:10px;
+    padding:10px 14px; font-size:0.78rem; pointer-events:none;
+    display:none; z-index:10; backdrop-filter:blur(8px); max-width:200px;
+  }
+  .map-tooltip.show { display:block; }
+  .map-tooltip strong { color:var(--teal); display:block; margin-bottom:4px; }
+
+  /* REPORT BUTTON ON MAP */
+  .report-on-map {
+    position:absolute; bottom:14px; right:14px;
+    background:var(--red); color:#fff;
+    font-family:'DM Sans',sans-serif; font-weight:700; font-size:0.82rem;
+    border:none; padding:10px 18px; border-radius:10px; cursor:pointer;
+    transition:all .2s; display:flex; align-items:center; gap:8px;
+    box-shadow:0 4px 20px rgba(255,59,92,0.4);
+  }
+  .report-on-map:hover { transform:translateY(-2px); box-shadow:0 8px 28px rgba(255,59,92,0.5); }
+
+  /* SIDEBAR */
+  .sidebar { display:flex; flex-direction:column; gap:16px; overflow-y:auto; }
+
+  /* STATS ROW */
+  .stats-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+  }
+  .stat-card .val {
+    font-family:'Syne',sans-serif; font-size:1.8rem; font-weight:800;
+    line-height:1;
+  }
+  .stat-card .lbl { color:var(--muted); font-size:0.72rem; margin-top:4px; }
+  .stat-card .chg { font-size:0.72rem; margin-top:6px; }
+  .chg.up { color:var(--red); } .chg.dn { color:var(--green); }
+
+  /* ALERTS PANEL */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden; flex-shrink:0;
+  }
+  .panel-header {
+    padding:12px 16px; display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid var(--border);
+  }
+  .panel-header h3 { font-family:'Syne',sans-serif; font-size:0.88rem; font-weight:700; }
+  .panel-body { padding:12px; display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto; }
+
+  .alert-item {
+    background: var(--surface2);
+    border-radius:10px; padding:10px 12px;
+    border-left:3px solid var(--red);
+    cursor:pointer; transition:all .2s;
+    animation: slideIn 0.4s ease;
+  }
+  .alert-item:hover { transform:translateX(3px); }
+  .alert-item.warn { border-color:var(--orange); }
+  .alert-item.info { border-color:var(--blue); }
+  .alert-item .a-type { font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--red); margin-bottom:3px; }
+  .alert-item.warn .a-type { color:var(--orange); }
+  .alert-item.info .a-type { color:var(--blue); }
+  .alert-item .a-desc { font-size:0.8rem; color:var(--text); line-height:1.35; }
+  .alert-item .a-meta { font-size:0.7rem; color:var(--muted); margin-top:4px; }
+
+  @keyframes slideIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:none} }
+
+  /* RISK TIMELINE */
+  .timeline-chart { padding:12px 16px 16px; }
+  .timeline-bars { display:flex; align-items:flex-end; gap:4px; height:70px; margin-bottom:8px; }
+  .t-bar {
+    flex:1; border-radius:4px 4px 0 0; cursor:pointer;
+    transition:opacity .2s; position:relative;
+  }
+  .t-bar:hover { opacity:0.8; }
+  .t-bar.active { outline:2px solid var(--teal); outline-offset:2px; }
+  .t-bar .tip {
+    position:absolute; bottom:100%; left:50%; transform:translateX(-50%);
+    background:var(--surface2); border:1px solid var(--border);
+    border-radius:6px; padding:3px 7px; font-size:0.65rem; white-space:nowrap;
+    display:none; margin-bottom:4px; z-index:5;
+  }
+  .t-bar:hover .tip { display:block; }
+  .t-labels { display:flex; justify-content:space-between; font-size:0.65rem; color:var(--muted); }
+
+  /* COMMUNITY SCORE */
+  .trust-ring { display:flex; align-items:center; gap:14px; padding:12px 16px; }
+  .ring-svg { width:64px; height:64px; flex-shrink:0; }
+  .ring-info .score { font-family:'Syne',sans-serif; font-size:1.5rem; font-weight:800; color:var(--green); }
+  .ring-info .slbl { font-size:0.72rem; color:var(--muted); }
+
+  /* ── REPORT VIEW ── */
+  .report-view {
+    max-width: 520px; margin: 30px auto; padding: 0 20px 40px;
+  }
+  .report-view h1 { font-family:'Syne',sans-serif; font-size:1.6rem; font-weight:800; margin-bottom:6px; }
+  .report-view .sub { color:var(--muted); font-size:0.88rem; margin-bottom:28px; }
+  .form-group { margin-bottom:18px; }
+  .form-group label { display:block; font-size:0.8rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; }
+  .form-group input, .form-group select, .form-group textarea {
+    width:100%; background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:12px 14px; color:var(--text);
+    font-family:'DM Sans',sans-serif; font-size:0.9rem;
+    transition:border-color .2s; outline:none;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    border-color:var(--teal);
+  }
+  .form-group select option { background:var(--surface); }
+  .form-group textarea { resize:vertical; min-height:90px; }
+  .type-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .type-btn {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:10px 8px; cursor:pointer;
+    text-align:center; font-size:0.78rem; color:var(--muted);
+    transition:all .2s; font-family:'DM Sans',sans-serif;
+  }
+  .type-btn .icon { font-size:1.3rem; display:block; margin-bottom:4px; }
+  .type-btn.selected { border-color:var(--teal); color:var(--teal); background:rgba(0,201,177,0.08); }
+  .anon-notice {
+    background:rgba(0,201,177,0.07); border:1px solid rgba(0,201,177,0.2);
+    border-radius:10px; padding:12px 14px; font-size:0.8rem; color:var(--teal);
+    margin-bottom:20px; display:flex; align-items:flex-start; gap:10px;
+  }
+  .anon-notice .lock { font-size:1.1rem; flex-shrink:0; }
+  .submit-btn {
+    width:100%; background:var(--teal); color:#0A0E1A;
+    font-family:'Syne',sans-serif; font-weight:700; font-size:1rem;
+    border:none; padding:14px; border-radius:12px; cursor:pointer;
+    transition:all .2s; letter-spacing:0.3px;
+  }
+  .submit-btn:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,201,177,0.4); }
+  .submit-btn:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+
+  /* SUCCESS STATE */
+  .success-screen {
+    text-align:center; padding:50px 20px;
+    display:none;
+  }
+  .success-screen.show { display:block; }
+  .success-icon { font-size:3.5rem; margin-bottom:16px; }
+  .success-screen h2 { font-family:'Syne',sans-serif; font-size:1.4rem; font-weight:800; margin-bottom:8px; }
+  .success-screen p { color:var(--muted); font-size:0.9rem; max-width:320px; margin:0 auto 24px; }
+
+  /* ── ANALYTICS VIEW ── */
+  .analytics-view { padding:24px; }
+  .analytics-view h1 { font-family:'Syne',sans-serif; font-size:1.4rem; font-weight:800; margin-bottom:20px; }
+  .analytics-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:20px; }
+  .a-card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius); padding:18px;
+  }
+  .a-card h3 { font-family:'Syne',sans-serif; font-size:0.85rem; font-weight:700; color:var(--muted); margin-bottom:14px; }
+  .big-stat { font-family:'Syne',sans-serif; font-size:2.4rem; font-weight:800; }
+  .bar-chart { display:flex; flex-direction:column; gap:8px; }
+  .bar-row { display:flex; align-items:center; gap:10px; font-size:0.78rem; }
+  .bar-row .bl { width:90px; color:var(--muted); flex-shrink:0; text-align:right; }
+  .bar-row .bv { flex:1; background:var(--surface2); border-radius:4px; height:8px; }
+  .bar-row .bv .bfill { height:100%; border-radius:4px; transition:width 1s ease; }
+  .bar-row .bn { width:30px; font-size:0.72rem; color:var(--muted); }
+  .crime-types-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .ct-item {
+    background:var(--surface2); border-radius:8px; padding:10px 12px;
+    display:flex; justify-content:space-between; align-items:center; font-size:0.8rem;
+  }
+  .ct-item .ct-name { color:var(--muted); }
+  .ct-item .ct-n { font-weight:700; }
+
+  /* HEATMAP GRID */
+  .heatmap-grid { display:flex; flex-direction:column; gap:2px; }
+  .hm-row { display:flex; gap:2px; align-items:center; }
+  .hm-label { font-size:0.65rem; color:var(--muted); width:30px; flex-shrink:0; text-align:right; }
+  .hm-cell {
+    width:26px; height:22px; border-radius:3px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:0.55rem; cursor:pointer; transition:transform .1s;
+  }
+  .hm-cell:hover { transform:scale(1.2); }
+  .hm-day-labels { display:flex; gap:2px; padding-left:38px; margin-bottom:2px; }
+  .hm-day-labels span { width:26px; text-align:center; font-size:0.6rem; color:var(--muted); }
+
+  /* ── ALERTS VIEW ── */
+  .alerts-view { padding:24px; max-width:680px; margin:0 auto; }
+  .alerts-view h1 { font-family:'Syne',sans-serif; font-size:1.4rem; font-weight:800; margin-bottom:6px; }
+  .alerts-view .sub { color:var(--muted); font-size:0.88rem; margin-bottom:24px; }
+  .alert-zone-picker { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+  .zone-chip {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:20px; padding:7px 14px; font-size:0.8rem; cursor:pointer;
+    transition:all .2s; font-family:'DM Sans',sans-serif; color:var(--muted);
+  }
+  .zone-chip.active { background:rgba(0,201,177,0.1); border-color:var(--teal); color:var(--teal); }
+  .alert-list { display:flex; flex-direction:column; gap:10px; }
+  .big-alert {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius); padding:16px 18px;
+    border-left:4px solid var(--red); cursor:pointer; transition:all .2s;
+  }
+  .big-alert.warn { border-color:var(--orange); }
+  .big-alert.info { border-color:var(--blue); }
+  .big-alert.safe { border-color:var(--green); }
+  .big-alert:hover { transform:translateX(4px); }
+  .ba-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .ba-type { font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--red); }
+  .big-alert.warn .ba-type { color:var(--orange); }
+  .big-alert.info .ba-type { color:var(--blue); }
+  .big-alert.safe .ba-type { color:var(--green); }
+  .ba-time { font-size:0.72rem; color:var(--muted); flex-shrink:0; }
+  .ba-title { font-weight:600; font-size:0.92rem; margin:4px 0; }
+  .ba-desc { font-size:0.82rem; color:var(--muted); line-height:1.4; }
+  .ba-meta { display:flex; gap:14px; margin-top:8px; font-size:0.72rem; color:var(--muted); }
+  .ba-meta span { display:flex; align-items:center; gap:4px; }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,0.7);
+    display:flex; align-items:center; justify-content:center;
+    z-index:999; opacity:0; pointer-events:none; transition:opacity .2s;
+    backdrop-filter:blur(4px);
+  }
+  .modal-overlay.show { opacity:1; pointer-events:all; }
+  .modal {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius); padding:24px; max-width:400px; width:90%;
+    transform:translateY(20px); transition:transform .2s;
+  }
+  .modal-overlay.show .modal { transform:none; }
+  .modal h3 { font-family:'Syne',sans-serif; font-size:1.1rem; font-weight:800; margin-bottom:8px; }
+  .modal p { color:var(--muted); font-size:0.85rem; line-height:1.5; }
+  .modal-actions { display:flex; gap:10px; margin-top:18px; }
+  .modal-actions button { flex:1; }
+  .btn-ghost {
+    background:none; border:1px solid var(--border); color:var(--text);
+    font-family:'DM Sans',sans-serif; font-weight:600; font-size:0.88rem;
+    padding:10px; border-radius:10px; cursor:pointer; transition:all .2s;
+  }
+  .btn-ghost:hover { border-color:var(--muted); }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+
+  /* RESPONSIVE */
+  @media(max-width:768px) {
+    .dashboard-grid { grid-template-columns:1fr; height:auto; }
+    .map-canvas { height:320px; }
+    .analytics-grid { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">Neighbour<span>Watch</span></div>
+  <div class="tabs">
+    <button class="active" onclick="switchView('dashboard',this)">🗺 Live Map</button>
+    <button onclick="switchView('report',this)">📋 Report</button>
+    <button onclick="switchView('analytics',this)">📊 Analytics</button>
+    <button onclick="switchView('alerts',this)">🔔 Alerts</button>
+  </div>
+  <div class="nav-right">
+    <span class="alert-badge" id="alertCount">3 Active</span>
+    <button class="btn-sm" onclick="switchView('report',document.querySelectorAll('.tabs button')[1])">+ Report Incident</button>
+  </div>
+</nav>
+
+<!-- ════════════════════════ DASHBOARD VIEW ════════════════════════ -->
+<div class="view active" id="view-dashboard">
+  <div class="dashboard-grid">
+
+    <!-- MAP -->
+    <div class="map-container">
+      <div class="map-header">
+        <h2><span class="live-dot"></span>Live Crime Heat Map — Sector 18, Noida</h2>
+        <span style="font-size:0.75rem;color:var(--muted);" id="reportCount">47 reports today</span>
+      </div>
+      <div class="map-canvas">
+        <svg id="map-svg" viewBox="0 0 700 480" xmlns="http://www.w3.org/2000/svg">
+          <!-- Background roads -->
+          <rect width="700" height="480" fill="#111827"/>
+          <!-- Grid roads -->
+          <g stroke="#1E2D45" stroke-width="18" fill="none" opacity="0.8">
+            <line x1="0" y1="120" x2="700" y2="120"/>
+            <line x1="0" y1="240" x2="700" y2="240"/>
+            <line x1="0" y1="360" x2="700" y2="360"/>
+            <line x1="140" y1="0" x2="140" y2="480"/>
+            <line x1="280" y1="0" x2="280" y2="480"/>
+            <line x1="420" y1="0" x2="420" y2="480"/>
+            <line x1="560" y1="0" x2="560" y2="480"/>
+          </g>
+          <!-- Road lines (center) -->
+          <g stroke="#243650" stroke-width="2" stroke-dasharray="12,8" fill="none" opacity="0.5">
+            <line x1="0" y1="120" x2="700" y2="120"/>
+            <line x1="0" y1="240" x2="700" y2="240"/>
+            <line x1="0" y1="360" x2="700" y2="360"/>
+            <line x1="140" y1="0" x2="140" y2="480"/>
+            <line x1="280" y1="0" x2="280" y2="480"/>
+            <line x1="420" y1="0" x2="420" y2="480"/>
+            <line x1="560" y1="0" x2="560" y2="480"/>
+          </g>
+          <!-- Block fills -->
+          <g opacity="0.3">
+            <rect x="9" y="9" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="149" y="9" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="289" y="9" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="429" y="9" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="569" y="9" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="9" y="129" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="149" y="129" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="289" y="129" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="429" y="129" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="569" y="129" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="9" y="249" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="149" y="249" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="289" y="249" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="429" y="249" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="569" y="249" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="9" y="369" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="149" y="369" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="289" y="369" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="429" y="369" width="122" height="102" rx="4" fill="#1a2235"/>
+            <rect x="569" y="369" width="122" height="102" rx="4" fill="#1a2235"/>
+          </g>
+          <!-- Street labels -->
+          <g fill="#2a4060" font-size="9" font-family="DM Sans, sans-serif" text-anchor="middle">
+            <text x="350" y="118" fill="#3B5480">Atta Market Road</text>
+            <text x="350" y="238" fill="#3B5480">Main Market St</text>
+            <text x="350" y="358" fill="#3B5480">Sector 18 Chowk</text>
+            <text x="140" y="12" fill="#3B5480" writing-mode="vertical">Sector Rd A</text>
+            <text x="280" y="12" fill="#3B5480" writing-mode="vertical">Sector Rd B</text>
+          </g>
+          <!-- HEAT ZONES (risk blobs) -->
+          <!-- High risk zone - red -->
+          <circle cx="210" cy="175" r="60" fill="url(#heatRed)" opacity="0.75"/>
+          <circle cx="210" cy="175" r="35" fill="url(#heatRedInner)" opacity="0.6"/>
+          <!-- Medium risk - orange -->
+          <circle cx="490" cy="295" r="50" fill="url(#heatOrange)" opacity="0.65"/>
+          <circle cx="490" cy="295" r="28" fill="url(#heatOrangeInner)" opacity="0.5"/>
+          <!-- Low-medium -->
+          <circle cx="350" cy="80" r="45" fill="url(#heatYellow)" opacity="0.55"/>
+          <!-- Very high cluster -->
+          <circle cx="350" cy="300" r="55" fill="url(#heatRed)" opacity="0.6"/>
+          <circle cx="350" cy="300" r="30" fill="url(#heatRedInner)" opacity="0.55"/>
+          <!-- Low risk green -->
+          <circle cx="80" cy="400" r="40" fill="url(#heatGreen)" opacity="0.45"/>
+          <circle cx="600" cy="60" r="38" fill="url(#heatGreen)" opacity="0.4"/>
+          <!-- Another orange zone -->
+          <circle cx="80" cy="180" r="42" fill="url(#heatOrange)" opacity="0.5"/>
+          <!-- Gradient defs -->
+          <defs>
+            <radialGradient id="heatRed">
+              <stop offset="0%" stop-color="#FF3B5C" stop-opacity="0.9"/>
+              <stop offset="100%" stop-color="#FF3B5C" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="heatRedInner">
+              <stop offset="0%" stop-color="#FF6B35" stop-opacity="1"/>
+              <stop offset="100%" stop-color="#FF3B5C" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="heatOrange">
+              <stop offset="0%" stop-color="#FF8C42" stop-opacity="0.9"/>
+              <stop offset="100%" stop-color="#FF8C42" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="heatOrangeInner">
+              <stop offset="0%" stop-color="#FFD166" stop-opacity="1"/>
+              <stop offset="100%" stop-color="#FF8C42" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="heatYellow">
+              <stop offset="0%" stop-color="#FFD166" stop-opacity="0.8"/>
+              <stop offset="100%" stop-color="#FFD166" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="heatGreen">
+              <stop offset="0%" stop-color="#06D6A0" stop-opacity="0.7"/>
+              <stop offset="100%" stop-color="#06D6A0" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <!-- Incident pins -->
+          <g id="pins"></g>
+          <!-- Clickable zones for tooltip -->
+          <circle cx="210" cy="175" r="60" fill="transparent" data-zone="Atta Market" data-risk="HIGH" data-incidents="12" data-type="Theft, Snatching" class="zone-hit" style="cursor:pointer"/>
+          <circle cx="490" cy="295" r="50" fill="transparent" data-zone="Sector 18 Metro" data-risk="MEDIUM" data-incidents="7" data-type="Harassment, Pickpocket" class="zone-hit" style="cursor:pointer"/>
+          <circle cx="350" cy="80" r="45" fill="transparent" data-zone="North Connector" data-risk="LOW-MEDIUM" data-incidents="4" data-type="Suspicious activity" class="zone-hit" style="cursor:pointer"/>
+          <circle cx="350" cy="300" r="55" fill="transparent" data-zone="Main Market" data-risk="HIGH" data-incidents="15" data-type="Chain snatching, Theft" class="zone-hit" style="cursor:pointer"/>
+          <circle cx="80" cy="400" r="40" fill="transparent" data-zone="Residential Block A" data-risk="LOW" data-incidents="2" data-type="Suspicious person" class="zone-hit" style="cursor:pointer"/>
+        </svg>
+        <!-- Tooltip -->
+        <div class="map-tooltip" id="mapTooltip">
+          <strong id="tt-zone">Zone</strong>
+          <div id="tt-risk" style="font-size:0.7rem;margin-bottom:4px;"></div>
+          <div id="tt-incidents" style="color:#8892A4;"></div>
+          <div id="tt-type" style="margin-top:4px;font-size:0.73rem;"></div>
+        </div>
+        <div class="risk-legend">
+          <h4>Risk Level</h4>
+          <div class="legend-row"><div class="legend-dot" style="background:var(--red);box-shadow:0 0 6px var(--red)"></div><span>High Risk</span></div>
+          <div class="legend-row"><div class="legend-dot" style="background:var(--orange);box-shadow:0 0 6px var(--orange)"></div><span>Medium Risk</span></div>
+          <div class="legend-row"><div class="legend-dot" style="background:var(--yellow);box-shadow:0 0 6px var(--yellow)"></div><span>Low-Medium</span></div>
+          <div class="legend-row"><div class="legend-dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div><span>Low Risk</span></div>
+        </div>
+        <button class="report-on-map" onclick="switchView('report',document.querySelectorAll('.tabs button')[1])">
+          ⚠️ Report Incident
+        </button>
+      </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="val" style="color:var(--red)">47</div>
+          <div class="lbl">Reports Today</div>
+          <div class="chg up">↑ 12% from yesterday</div>
+        </div>
+        <div class="stat-card">
+          <div class="val" style="color:var(--orange)">8</div>
+          <div class="lbl">Active Hotspots</div>
+          <div class="chg up">↑ 2 new zones</div>
+        </div>
+        <div class="stat-card">
+          <div class="val" style="color:var(--green)">1.2k</div>
+          <div class="lbl">Community Users</div>
+          <div class="chg dn">+89 this week</div>
+        </div>
+        <div class="stat-card">
+          <div class="val" style="color:var(--blue)">94%</div>
+          <div class="lbl">Accuracy Score</div>
+          <div class="chg dn">✓ Corroborated</div>
+        </div>
+      </div>
+
+      <!-- Live Alerts -->
+      <div class="panel">
+        <div class="panel-header">
+          <h3>🔴 Live Alerts</h3>
+          <span style="font-size:0.72rem;color:var(--muted)">Real-time</span>
+        </div>
+        <div class="panel-body" id="liveAlertsList">
+          <div class="alert-item">
+            <div class="a-type">🔴 Theft</div>
+            <div class="a-desc">Chain snatching near Main Market crossing. Bike-borne suspects.</div>
+            <div class="a-meta">📍 Main Market · 4 min ago · 3 reports</div>
+          </div>
+          <div class="alert-item warn">
+            <div class="a-type">🟠 Harassment</div>
+            <div class="a-desc">Group of men following women near Metro Gate 2.</div>
+            <div class="a-meta">📍 Sector 18 Metro · 11 min ago · 2 reports</div>
+          </div>
+          <div class="alert-item info">
+            <div class="a-type">🔵 Suspicious</div>
+            <div class="a-desc">Unknown vehicle parked outside ATM for 2+ hours.</div>
+            <div class="a-meta">📍 Atta Market · 23 min ago · 1 report</div>
+          </div>
+          <div class="alert-item warn">
+            <div class="a-type">🟠 Pickpocket</div>
+            <div class="a-desc">Multiple wallet thefts reported at bus stand area.</div>
+            <div class="a-meta">📍 Bus Stand · 37 min ago · 4 reports</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Risk by hour timeline -->
+      <div class="panel">
+        <div class="panel-header">
+          <h3>⏰ Risk Timeline — Today</h3>
+        </div>
+        <div class="timeline-chart">
+          <div class="timeline-bars" id="timelineBars"></div>
+          <div class="t-labels">
+            <span>12am</span><span>6am</span><span>9am</span><span>12pm</span><span>3pm</span><span>6pm</span><span>9pm</span><span>11pm</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Community Trust -->
+      <div class="panel">
+        <div class="panel-header">
+          <h3>🛡️ Community Trust Score</h3>
+        </div>
+        <div class="trust-ring">
+          <svg class="ring-svg" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="28" fill="none" stroke="#1a2235" stroke-width="8"/>
+            <circle cx="32" cy="32" r="28" fill="none" stroke="var(--green)" stroke-width="8"
+              stroke-dasharray="152 176" stroke-dashoffset="44" stroke-linecap="round"
+              transform="rotate(-90 32 32)"/>
+            <text x="32" y="37" text-anchor="middle" fill="var(--green)" font-size="14" font-family="Syne" font-weight="800">87</text>
+          </svg>
+          <div class="ring-info">
+            <div class="score">87 / 100</div>
+            <div class="slbl">Neighbourhood Trust Index</div>
+            <div style="font-size:0.72rem;color:var(--muted);margin-top:6px;">Based on 1,247 verified reports from 1,189 unique users. High corroboration rate.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════ REPORT VIEW ════════════════════════ -->
+<div class="view" id="view-report">
+  <div class="report-view">
+    <div id="report-form-wrap">
+      <h1>Report an Incident</h1>
+      <p class="sub">All reports are anonymous. No personal data is stored. Your identity is never revealed.</p>
+
+      <div class="anon-notice">
+        <span class="lock">🔒</span>
+        <div>Your report is <strong>100% anonymous</strong>. We only record location + time + incident type. Zero PII stored. Differential privacy applied to all data.</div>
+      </div>
+
+      <div class="form-group">
+        <label>Incident Type *</label>
+        <div class="type-grid" id="typeGrid">
+          <div class="type-btn selected" data-val="Theft" onclick="selectType(this)"><span class="icon">💼</span>Theft</div>
+          <div class="type-btn" data-val="Snatching" onclick="selectType(this)"><span class="icon">🏃</span>Snatching</div>
+          <div class="type-btn" data-val="Harassment" onclick="selectType(this)"><span class="icon">⚠️</span>Harassment</div>
+          <div class="type-btn" data-val="Suspicious" onclick="selectType(this)"><span class="icon">👁️</span>Suspicious</div>
+          <div class="type-btn" data-val="Vandalism" onclick="selectType(this)"><span class="icon">🔨</span>Vandalism</div>
+          <div class="type-btn" data-val="Other" onclick="selectType(this)"><span class="icon">📌</span>Other</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Location / Street Name *</label>
+        <input type="text" id="loc" placeholder="e.g. Near Atta Market Gate 3, Sector 18 Noida" />
+      </div>
+
+      <div class="form-group">
+        <label>When did this happen?</label>
+        <input type="datetime-local" id="dt" />
+      </div>
+
+      <div class="form-group">
+        <label>Severity</label>
+        <select id="severity">
+          <option value="low">Low — Minor incident / observation</option>
+          <option value="medium" selected>Medium — Concerning, needs awareness</option>
+          <option value="high">High — Urgent, immediate risk</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Brief Description (optional)</label>
+        <textarea id="desc" placeholder="What happened? Any details that could help the community (no names needed)..."></textarea>
+      </div>
+
+      <button class="submit-btn" id="submitBtn" onclick="submitReport()">Submit Anonymous Report →</button>
+    </div>
+
+    <div class="success-screen" id="successScreen">
+      <div class="success-icon">✅</div>
+      <h2>Report Submitted</h2>
+      <p>Your anonymous report has been added to the community map. The AI will cluster it with nearby reports to update the risk heat map.</p>
+      <p style="margin-top:12px;color:var(--teal);font-size:0.85rem;">Report ID: <strong id="reportId"></strong></p>
+      <button class="btn-sm" style="margin-top:20px;padding:12px 28px;" onclick="resetReport()">Submit Another Report</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════ ANALYTICS VIEW ════════════════════════ -->
+<div class="view" id="view-analytics">
+  <div class="analytics-view">
+    <h1>📊 Crime Pattern Analytics — Sector 18, Noida</h1>
+    <div class="analytics-grid">
+
+      <div class="a-card">
+        <h3>Total Reports This Month</h3>
+        <div class="big-stat" style="color:var(--teal)">1,284</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:6px;">↑ 18% vs last month · Powered by 1.2k active users</div>
+        <div style="margin-top:14px;">
+          <div class="crime-types-grid">
+            <div class="ct-item"><span class="ct-name">Theft</span><span class="ct-n" style="color:var(--red)">412</span></div>
+            <div class="ct-item"><span class="ct-name">Harassment</span><span class="ct-n" style="color:var(--orange)">287</span></div>
+            <div class="ct-item"><span class="ct-name">Snatching</span><span class="ct-n" style="color:var(--orange)">231</span></div>
+            <div class="ct-item"><span class="ct-name">Suspicious</span><span class="ct-n" style="color:var(--yellow)">198</span></div>
+            <div class="ct-item"><span class="ct-name">Vandalism</span><span class="ct-n" style="color:var(--blue)">89</span></div>
+            <div class="ct-item"><span class="ct-name">Other</span><span class="ct-n" style="color:var(--muted)">67</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="a-card">
+        <h3>Hotspot Rankings</h3>
+        <div class="bar-chart">
+          <div class="bar-row">
+            <span class="bl">Main Market</span>
+            <div class="bv"><div class="bfill" style="width:90%;background:var(--red)"></div></div>
+            <span class="bn">312</span>
+          </div>
+          <div class="bar-row">
+            <span class="bl">Atta Market</span>
+            <div class="bv"><div class="bfill" style="width:75%;background:var(--red)"></div></div>
+            <span class="bn">258</span>
+          </div>
+          <div class="bar-row">
+            <span class="bl">Metro Gate</span>
+            <div class="bv"><div class="bfill" style="width:58%;background:var(--orange)"></div></div>
+            <span class="bn">199</span>
+          </div>
+          <div class="bar-row">
+            <span class="bl">Bus Stand</span>
+            <div class="bv"><div class="bfill" style="width:45%;background:var(--orange)"></div></div>
+            <span class="bn">154</span>
+          </div>
+          <div class="bar-row">
+            <span class="bl">ATM Zone</span>
+            <div class="bv"><div class="bfill" style="width:32%;background:var(--yellow)"></div></div>
+            <span class="bn">109</span>
+          </div>
+          <div class="bar-row">
+            <span class="bl">Res. Block A</span>
+            <div class="bv"><div class="bfill" style="width:18%;background:var(--green)"></div></div>
+            <span class="bn">62</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="a-card">
+        <h3>AI Prediction: Next 6 Hours</h3>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+          <div style="background:rgba(255,59,92,0.1);border:1px solid rgba(255,59,92,0.2);border-radius:8px;padding:10px 12px;">
+            <div style="font-size:0.7rem;color:var(--red);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">HIGH RISK — 6PM–9PM</div>
+            <div style="font-size:0.82rem;margin-top:4px;">Main Market, Atta Market</div>
+            <div style="font-size:0.72rem;color:var(--muted);margin-top:2px;">Peak footfall + low lighting = high theft probability</div>
+          </div>
+          <div style="background:rgba(255,140,66,0.1);border:1px solid rgba(255,140,66,0.2);border-radius:8px;padding:10px 12px;">
+            <div style="font-size:0.7rem;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">MEDIUM — 4PM–6PM</div>
+            <div style="font-size:0.82rem;margin-top:4px;">Metro Gate 2, Bus Stand</div>
+            <div style="font-size:0.72rem;color:var(--muted);margin-top:2px;">School dispersal time. Increase vigilance.</div>
+          </div>
+          <div style="background:rgba(6,214,160,0.07);border:1px solid rgba(6,214,160,0.2);border-radius:8px;padding:10px 12px;">
+            <div style="font-size:0.7rem;color:var(--green);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">LOW — Rest of Area</div>
+            <div style="font-size:0.82rem;margin-top:4px;">Residential Blocks A, B, C</div>
+            <div style="font-size:0.72rem;color:var(--muted);margin-top:2px;">Pattern analysis shows historically low activity.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Heatmap by day + hour -->
+    <div class="a-card" style="margin-bottom:16px;">
+      <h3>Incident Heatmap — By Day × Hour (Last 4 Weeks)</h3>
+      <div style="overflow-x:auto;margin-top:8px;">
+        <div class="hm-day-labels" id="hmDayLabels"></div>
+        <div class="heatmap-grid" id="hmGrid"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:0.7rem;color:var(--muted);">
+        <span>Low</span>
+        <div style="display:flex;gap:2px;">
+          <div style="width:16px;height:10px;border-radius:2px;background:rgba(0,201,177,0.15)"></div>
+          <div style="width:16px;height:10px;border-radius:2px;background:rgba(255,209,102,0.4)"></div>
+          <div style="width:16px;height:10px;border-radius:2px;background:rgba(255,140,66,0.6)"></div>
+          <div style="width:16px;height:10px;border-radius:2px;background:rgba(255,59,92,0.8)"></div>
+          <div style="width:16px;height:10px;border-radius:2px;background:rgba(255,59,92,1)"></div>
+        </div>
+        <span>High</span>
+        <span style="margin-left:10px;">Click any cell for breakdown</span>
+      </div>
+    </div>
+
+    <!-- DBSCAN explanation -->
+    <div class="a-card">
+      <h3>How the AI Works</h3>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:4px;">
+        <div style="text-align:center;padding:12px;background:var(--surface2);border-radius:10px;">
+          <div style="font-size:1.6rem;margin-bottom:8px;">📍</div>
+          <div style="font-size:0.78rem;font-weight:600;margin-bottom:4px;">Collect</div>
+          <div style="font-size:0.7rem;color:var(--muted)">Anonymous reports with location + time + type</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:var(--surface2);border-radius:10px;">
+          <div style="font-size:1.6rem;margin-bottom:8px;">🔵</div>
+          <div style="font-size:0.78rem;font-weight:600;margin-bottom:4px;">DBSCAN Cluster</div>
+          <div style="font-size:0.7rem;color:var(--muted)">ML groups nearby reports into hotspot zones</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:var(--surface2);border-radius:10px;">
+          <div style="font-size:1.6rem;margin-bottom:8px;">📈</div>
+          <div style="font-size:0.78rem;font-weight:600;margin-bottom:4px;">Time-Series</div>
+          <div style="font-size:0.7rem;color:var(--muted)">Predicts high-risk windows per zone per hour</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:var(--surface2);border-radius:10px;">
+          <div style="font-size:1.6rem;margin-bottom:8px;">🔔</div>
+          <div style="font-size:0.78rem;font-weight:600;margin-bottom:4px;">Smart Alert</div>
+          <div style="font-size:0.7rem;color:var(--muted)">Personalised push to affected residents only</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════ ALERTS VIEW ════════════════════════ -->
+<div class="view" id="view-alerts">
+  <div class="alerts-view">
+    <h1>🔔 My Alert Zones</h1>
+    <p class="sub">Personalised safety alerts for your home, workplace, and commute routes.</p>
+
+    <div class="alert-zone-picker">
+      <div class="zone-chip active" onclick="filterAlerts('all',this)">All Zones</div>
+      <div class="zone-chip" onclick="filterAlerts('home',this)">🏠 Home</div>
+      <div class="zone-chip" onclick="filterAlerts('work',this)">🏢 Work</div>
+      <div class="zone-chip" onclick="filterAlerts('school',this)">🏫 School Route</div>
+      <div class="zone-chip" onclick="filterAlerts('market',this)">🛒 Market</div>
+    </div>
+
+    <div class="alert-list" id="alertList">
+
+      <div class="big-alert" data-zone="market">
+        <div class="ba-top">
+          <div class="ba-type">🔴 HIGH — THEFT</div>
+          <div class="ba-time">4 min ago</div>
+        </div>
+        <div class="ba-title">Chain Snatching — Main Market Crossing</div>
+        <div class="ba-desc">Bike-borne suspects targeting women. 3 reports in last 15 minutes. AI confidence: 94%.</div>
+        <div class="ba-meta">
+          <span>📍 Main Market</span>
+          <span>👥 3 reports</span>
+          <span>🤖 94% confidence</span>
+        </div>
+      </div>
+
+      <div class="big-alert warn" data-zone="school">
+        <div class="ba-top">
+          <div class="ba-type">🟠 MEDIUM — HARASSMENT</div>
+          <div class="ba-time">11 min ago</div>
+        </div>
+        <div class="ba-title">Group Following Women — Near Metro Gate 2</div>
+        <div class="ba-desc">Multiple women reported being followed near the Metro Gate 2 exit. Avoid this route after dark.</div>
+        <div class="ba-meta">
+          <span>📍 Sector 18 Metro</span>
+          <span>👥 2 reports</span>
+          <span>🤖 81% confidence</span>
+        </div>
+      </div>
+
+      <div class="big-alert info" data-zone="work">
+        <div class="ba-top">
+          <div class="ba-type">🔵 LOW — SUSPICIOUS</div>
+          <div class="ba-time">23 min ago</div>
+        </div>
+        <div class="ba-title">Unknown Vehicle Near ATM — Atta Market</div>
+        <div class="ba-desc">A white SUV has been parked outside the SBI ATM for over 2 hours. Community has flagged it.</div>
+        <div class="ba-meta">
+          <span>📍 Atta Market</span>
+          <span>👥 1 report</span>
+          <span>🤖 62% confidence</span>
+        </div>
+      </div>
+
+      <div class="big-alert warn" data-zone="market">
+        <div class="ba-top">
+          <div class="ba-type">🟠 MEDIUM — PICKPOCKET</div>
+          <div class="ba-time">37 min ago</div>
+        </div>
+        <div class="ba-title">Multiple Wallet Thefts at Bus Stand</div>
+        <div class="ba-desc">4 people reported pickpocketing during peak bus hours. Be vigilant in crowded areas near the bus stand.</div>
+        <div class="ba-meta">
+          <span>📍 Bus Stand</span>
+          <span>👥 4 reports</span>
+          <span>🤖 88% confidence</span>
+        </div>
+      </div>
+
+      <div class="big-alert safe" data-zone="home">
+        <div class="ba-top">
+          <div class="ba-type" style="color:var(--green)">✅ SAFE — YOUR HOME AREA</div>
+          <div class="ba-time">Updated 1h ago</div>
+        </div>
+        <div class="ba-title">Residential Block A — All Clear</div>
+        <div class="ba-desc">No incidents reported in your home zone in the last 6 hours. Community trust score: 96/100.</div>
+        <div class="ba-meta">
+          <span>📍 Block A, Sector 18</span>
+          <span>👥 0 reports</span>
+          <span>🛡️ Safe Zone</span>
+        </div>
+      </div>
+
+      <div class="big-alert info" data-zone="school">
+        <div class="ba-top">
+          <div class="ba-type">🔵 PREDICTION ALERT</div>
+          <div class="ba-time">AI Forecast</div>
+        </div>
+        <div class="ba-title">School Dispersal Risk — 3PM–5PM Today</div>
+        <div class="ba-desc">Historical patterns show elevated theft near the school route between 3PM–5PM. Plan accordingly.</div>
+        <div class="ba-meta">
+          <span>📍 School Route B</span>
+          <span>🤖 AI Prediction</span>
+          <span>📅 Today 3–5PM</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modal-title">Zone Details</h3>
+    <p id="modal-body">Details here.</p>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Close</button>
+      <button class="btn-sm" onclick="switchView('report',document.querySelectorAll('.tabs button')[1]);closeModal()">Report Here</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── STATE ──
+  let selectedType = 'Theft';
+  let alertFilter = 'all';
+
+  // ── VIEW SWITCHER ──
+  function switchView(id, btn) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+    document.getElementById('view-'+id).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  // ── TIMELINE CHART ──
+  const hourRisks = [1,0,0,1,1,3,6,8,7,5,6,8,9,8,6,5,7,10,14,12,10,8,5,3];
+  const maxR = Math.max(...hourRisks);
+  function buildTimeline() {
+    const now = new Date().getHours();
+    const container = document.getElementById('timelineBars');
+    hourRisks.forEach((v, i) => {
+      const h = Math.round((v/maxR)*100);
+      const col = v > 10 ? 'var(--red)' : v > 6 ? 'var(--orange)' : v > 3 ? 'var(--yellow)' : 'var(--green)';
+      const bar = document.createElement('div');
+      bar.className = 't-bar' + (i === now ? ' active' : '');
+      bar.style.cssText = `height:${Math.max(h,5)}%;background:${col};`;
+      bar.innerHTML = `<span class="tip">${i}:00 — ${v} reports</span>`;
+      container.appendChild(bar);
+    });
+  }
+  buildTimeline();
+
+  // ── HEATMAP ──
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const hours = ['12a','2a','4a','6a','8a','10a','12p','2p','4p','6p','8p','10p'];
+  const hmData = [
+    [0,0,0,0,1,2,3,4,3,5,4,2],
+    [0,0,0,0,1,3,4,5,4,6,5,3],
+    [0,0,0,0,1,2,3,5,5,7,6,3],
+    [0,0,0,0,2,3,5,6,5,8,7,4],
+    [0,0,0,0,2,4,6,7,6,9,8,5],
+    [1,0,0,1,3,5,7,8,7,10,9,6],
+    [0,0,0,0,2,3,4,5,4,6,5,3],
+  ];
+  const maxHm = 10;
+  function hmColor(v) {
+    const t = v/maxHm;
+    if(t < 0.1) return `rgba(0,201,177,0.15)`;
+    if(t < 0.3) return `rgba(255,209,102,${0.3+t*0.5})`;
+    if(t < 0.6) return `rgba(255,140,66,${0.4+t*0.5})`;
+    return `rgba(255,59,92,${0.6+t*0.4})`;
+  }
+  function buildHeatmap() {
+    const dl = document.getElementById('hmDayLabels');
+    hours.forEach(h => { const s=document.createElement('span');s.textContent=h;dl.appendChild(s); });
+    const grid = document.getElementById('hmGrid');
+    days.forEach((d,di) => {
+      const row = document.createElement('div');
+      row.className = 'hm-row';
+      const lbl = document.createElement('div');
+      lbl.className = 'hm-label'; lbl.textContent = d;
+      row.appendChild(lbl);
+      hmData[di].forEach((v,hi) => {
+        const cell = document.createElement('div');
+        cell.className = 'hm-cell';
+        cell.style.background = hmColor(v);
+        cell.title = `${d} ${hours[hi]}: ${v} reports`;
+        cell.onclick = () => showModal(`${d} at ${hours[hi]}`, `${v} incident reports recorded. Peak type: ${v>5?'Theft':'Suspicious activity'}. Community corroboration rate: ${Math.round(70+v*3)}%.`);
+        row.appendChild(cell);
+      });
+      grid.appendChild(row);
+    });
+  }
+  buildHeatmap();
+
+  // ── MAP TOOLTIPS ──
+  document.querySelectorAll('.zone-hit').forEach(z => {
+    z.addEventListener('mousemove', e => {
+      const tt = document.getElementById('mapTooltip');
+      const rect = e.target.closest('.map-canvas').getBoundingClientRect();
+      const risk = z.dataset.risk;
+      const col = risk==='HIGH'?'var(--red)':risk==='MEDIUM'?'var(--orange)':risk==='LOW-MEDIUM'?'var(--yellow)':'var(--green)';
+      document.getElementById('tt-zone').textContent = z.dataset.zone;
+      document.getElementById('tt-risk').innerHTML = `<span style="color:${col};font-weight:700">${risk} RISK</span>`;
+      document.getElementById('tt-incidents').textContent = `${z.dataset.incidents} reports today`;
+      document.getElementById('tt-type').textContent = z.dataset.type;
+      tt.style.left = (e.clientX - rect.left + 14) + 'px';
+      tt.style.top = (e.clientY - rect.top - 10) + 'px';
+      tt.classList.add('show');
+    });
+    z.addEventListener('mouseleave', () => {
+      document.getElementById('mapTooltip').classList.remove('show');
+    });
+    z.addEventListener('click', () => {
+      const risk = z.dataset.risk;
+      showModal(`${z.dataset.zone} — ${risk} Risk Zone`, `${z.dataset.incidents} incidents reported today in this area.\n\nTypes: ${z.dataset.type}.\n\nAI Pattern: This zone shows elevated ${risk.toLowerCase()} risk based on DBSCAN cluster analysis of 30-day historical data. Recommend avoiding late evenings and peak market hours.`);
+    });
+  });
+
+  // ── MAP CLICK TO REPORT ──
+  document.getElementById('map-svg').addEventListener('click', e => {
+    if(e.target.classList.contains('zone-hit')) return;
+    // Add a temporary pin animation
+    const svgRect = e.target.getBoundingClientRect();
+    const viewBox = {w:700, h:480};
+    const x = ((e.clientX - svgRect.left) / svgRect.width) * viewBox.w;
+    const y = ((e.clientY - svgRect.top) / svgRect.height) * viewBox.h;
+    const pins = document.getElementById('pins');
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx', x); circle.setAttribute('cy', y); circle.setAttribute('r', 6);
+    circle.setAttribute('fill', 'var(--teal)'); circle.setAttribute('opacity', '0.9');
+    circle.style.animation = 'none';
+    pins.appendChild(circle);
+    setTimeout(() => pins.removeChild(circle), 3000);
+  });
+
+  // ── REPORT TYPE SELECTION ──
+  function selectType(el) {
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedType = el.dataset.val;
+  }
+
+  // ── SUBMIT REPORT ──
+  function submitReport() {
+    const loc = document.getElementById('loc').value.trim();
+    if(!loc) { document.getElementById('loc').focus(); return; }
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true; btn.textContent = 'Encrypting & Submitting...';
+    setTimeout(() => {
+      const id = 'NW-' + Math.random().toString(36).substr(2,8).toUpperCase();
+      document.getElementById('reportId').textContent = id;
+      document.getElementById('report-form-wrap').style.display = 'none';
+      document.getElementById('successScreen').classList.add('show');
+      // Add to live alerts list
+      addLiveAlert(selectedType, loc, document.getElementById('severity').value);
+      // Update count
+      const rc = document.getElementById('reportCount');
+      rc.textContent = (parseInt(rc.textContent) + 1) + ' reports today';
+    }, 1400);
+  }
+
+  function addLiveAlert(type, loc, sev) {
+    const al = document.getElementById('liveAlertsList');
+    const icons = {Theft:'💼',Snatching:'🏃',Harassment:'⚠️',Suspicious:'👁️',Vandalism:'🔨',Other:'📌'};
+    const cls = sev==='high'?'':'sev==="medium"?"warn":"info"';
+    const div = document.createElement('div');
+    div.className = 'alert-item' + (sev==='high'?'':sev==='medium'?' warn':' info');
+    const col = sev==='high'?'🔴':sev==='medium'?'🟠':'🔵';
+    div.innerHTML = `<div class="a-type">${col} ${type}</div><div class="a-desc">New community report near ${loc}.</div><div class="a-meta">📍 ${loc} · Just now · 1 report</div>`;
+    al.insertBefore(div, al.firstChild);
+    // update badge
+    const badge = document.getElementById('alertCount');
+    const n = parseInt(badge.textContent) + 1;
+    badge.textContent = n + ' Active';
+  }
+
+  function resetReport() {
+    document.getElementById('report-form-wrap').style.display = 'block';
+    document.getElementById('successScreen').classList.remove('show');
+    document.getElementById('loc').value = '';
+    document.getElementById('desc').value = '';
+    document.getElementById('submitBtn').disabled = false;
+    document.getElementById('submitBtn').textContent = 'Submit Anonymous Report →';
+  }
+
+  // ── MODAL ──
+  function showModal(title, body) {
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-body').textContent = body;
+    document.getElementById('modal').classList.add('show');
+  }
+  function closeModal() { document.getElementById('modal').classList.remove('show'); }
+  document.getElementById('modal').addEventListener('click', e => { if(e.target===e.currentTarget) closeModal(); });
+
+  // ── ALERT FILTER ──
+  function filterAlerts(zone, chip) {
+    alertFilter = zone;
+    document.querySelectorAll('.zone-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    document.querySelectorAll('.big-alert').forEach(a => {
+      if(zone === 'all' || a.dataset.zone === zone) {
+        a.style.display = '';
+      } else {
+        a.style.display = 'none';
+      }
+    });
+  }
+
+  // ── SIMULATE LIVE UPDATES ──
+  const newAlerts = [
+    {type:'Suspicious',loc:'Near HDFC ATM',sev:'low',desc:'Person loitering near ATM for 30+ mins.'},
+    {type:'Theft',loc:'Atta Market Parking',sev:'high',desc:'Vehicle break-in reported. Windows smashed.'},
+    {type:'Harassment',loc:'Sector 18 Park',sev:'medium',desc:'Women reported verbal harassment near park.'},
+  ];
+  let ai = 0;
+  setInterval(() => {
+    if(ai < newAlerts.length) {
+      const a = newAlerts[ai++];
+      addLiveAlert(a.type, a.loc, a.sev);
+    }
+  }, 25000);
+
+  // ── SET DEFAULT DATE-TIME ──
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('dt').value = now.toISOString().slice(0,16);
+</script>
+</body>
+</html>
