@@ -61,7 +61,7 @@ A community-driven, browser-based crime awareness dashboard for residential neig
 
 1. Clone the repo:
    ```
-   git clone https://github.com/dev-harshyadav/neighbour-watch
+   git clone https://github.com/dev-harshyadav/NeighbourWatch
    ```
 2. Open `index.html` in any browser. Done — no server needed.
 
@@ -72,7 +72,7 @@ Or just visit the live demo link above.
 ## Project Structure
 
 ```
-neighbour-watch/
+NeighbourWatch/
 │
 ├── index.html      ← entire project (HTML + CSS + JS in one file)
 └── README.md       ← this file
